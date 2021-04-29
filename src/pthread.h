@@ -40,7 +40,19 @@
 #define PTHREAD_SCOPE_SYSTEM       1002
 
 
+/**
+ * Constants
+ */
+#ifndef NEEDLETHREAD_DEFAULT_STACK_SIZE
+#define NEEDLETHREAD_DEFAULT_STACK_SIZE 100000
+#endif
 
+#ifndef NEEDLETHREAD_MAX_THREADS
+#define NEEDLETHREAD_MAX_THREADS 100
+#endif
+
+
+void Freeze();
 /** 
  * Types
  */
@@ -60,12 +72,14 @@ typedef struct _tagpthread_mutex_t {
 
 } pthread_mutex_t;
 
+#define pthread_attr_t_struct_state_RAW 0
+#define pthread_attr_t_struct_state_POSTINIT 1
+#define pthread_attr_t_struct_state_POSTDESTROY 2
+
 typedef struct _tagpthread_attr_t {
-	enum  {
-		undefined = 0,
-		initalized = 1,
-		destroyed = 2
-	} lifecycle; // True after _init has been called. False after destroy
+	int struct_state; // 0/random per default. 1 after init. 2 after destroy
+	int stack_size;
+	const char * stack; // Created on pthread_create, not on attr_init
 
 } pthread_attr_t;
 
@@ -85,9 +99,15 @@ typedef struct _tagpthread_once_t {
 
 } pthread_once_t; 
 
+// From #include <sched.h>
 typedef struct _tagsched_param {
 
 } sched_param;
+
+// From #include <time.h>
+typedef struct _tagptimespec {
+
+} timespec;
 
 /** 
  * General Pthread attribute management 
