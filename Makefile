@@ -1,2 +1,2 @@
-test.out: src/test.c src/needlethread.c src/pthread.h
-	gcc src/test.c src/needlethread.c -o $@
+test.out: src/test.c src/needlethread.c src/pthread.h src/call_on_new_stack.s
+	gcc -g src/test.c src/needlethread.c src/call_on_new_stack.s -o $@
