@@ -46,8 +46,8 @@ call_on_new_stack:
 
 	call	rdx
 
-	## By now the rsp should be pointing at the bottom of our custom stack
-	## lets pop rsp 
+	# By now the rsp should be pointing at the bottom of our custom stack
+	# lets pop rsp 
 	pop rsp # Should return the rsp to what it was prior to "Set stack pointer to new stack
 
 	mov	QWORD PTR -8[rbp], rax # return-value from function
