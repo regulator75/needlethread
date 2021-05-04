@@ -81,6 +81,8 @@ typedef struct _tagpthread_attr_t {
 	int stack_size;
 	const char * stack; // Created on pthread_create, not on attr_init
 
+	int detached_state; //default PTHREAD_CREATE_JOINABLE
+
 } pthread_attr_t;
 
 typedef struct _tagpthread_rwlock_t {

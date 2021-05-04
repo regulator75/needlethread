@@ -92,12 +92,39 @@ int _find_next_thread_and_store(threadData * pnewThreadData) {
 	return found_idx;
 }
 
+void __thread_root_function(void *(*pfunc)(void *), void* funcargs) {
+	
+	// TODO: Clean this up (The use of _unlock)
+	// The reason for the stray unlock here is that the very first time
+	// a function gets to run, it is not unfrozen because it returns
+	// from a yield, but it just became alive. So in that case
+	// the yield function that enabled it to run, has taken the lock. 
+	// A thread that is already running for while would get reanimated 
+	// returning through yield, thus unlocking, but not as a novel thread.
+	_unlock(&all_threads_lock);
+
+	//
+	// Call the function that was passed by the caller to pthread_create
+	pfunc(funcargs);
+
+	//
+	// Clean up, and Yield to whatever other thread there is.
+	// 
+	// TODO: work
+
+}
+
+
+/**
+ * Thread attributes
+ */
 int pthread_attr_init(pthread_attr_t * p)
 {
 
 	p->struct_state = pthread_attr_t_struct_state_POSTINIT;
 	p->stack_size = NEEDLETHREAD_DEFAULT_STACK_SIZE;
 	p->stack = 0;
+	p->detached_state = PTHREAD_CREATE_JOINABLE;
 	return 0;
 
 }
@@ -112,19 +139,27 @@ int pthread_attr_destroy(pthread_attr_t * p) {
 	}
 }
 
-void __thread_root_function(void *(*pfunc)(void *), void* funcargs) {
-	
-	// TODO: Clean this up
-	// The reason for the stray unlock here is that the very first time
-	// a function gets to run, it is not unfrozen because it returns
-	// from a yield, but it just became alive. So in that case
-	// the yield function that enabled it to run, has taken the lock. 
-	// A thread that is already running for while would get reanimated 
-	// returning through yield, thus unlocking, but not as a novel thread.
-	_unlock(&all_threads_lock);
-	pfunc(funcargs);
+int pthread_attr_setdetachstate(pthread_attr_t *attr, int state) {
+	if(state == PTHREAD_CREATE_DETACHED || state == PTHREAD_CREATE_JOINABLE) {
+		attr->detached_state = state;
+		return 0;
+	} else {
+		return -1;
+	}
 }
 
+int pthread_attr_getdetachstate(const pthread_attr_t *attr, int *state){
+	*state = attr->detached_state;
+	return 0;
+}
+
+
+void pthread_exit(void * retval) {
+	_lock(&all_threads_lock);
+	//all_threads[current_thread_idx]->
+	_unlock(&all_threads_lock);
+
+}
 
 int pthread_create(pthread_t *pth, const pthread_attr_t *pattr, void *(*pfunc)(void *) , void * funcargs) {
 
@@ -155,7 +190,11 @@ int pthread_create(pthread_t *pth, const pthread_attr_t *pattr, void *(*pfunc)(v
 		//p_new_thread_data->stack_size    = attr_to_use->stack_size;
 		p_new_thread_data->top_of_stack  = &p_new_thread_data->stack[attr_to_use->stack_size-1];
 
-		// Set up the stack, 
+		// Set up the stack. This will be popped by the __swap function, as the 
+		// running thread yields to the thread we are currently setting up.
+		// The last thing that will be popped, is on top of this list, is the
+		// adress that will go into the Instruction Pointer. This is done by
+		// the "ret" instruction at the end of __swap.
 		*(p_new_thread_data->top_of_stack-0) = (int64_t) __thread_root_function; // POPs to SP
 		*(p_new_thread_data->top_of_stack-1) = (int64_t) &p_new_thread_data->stack[attr_to_use->stack_size-1];//RBP, the base of the stack essentially
 		*(p_new_thread_data->top_of_stack-2) = 1;//push rax
