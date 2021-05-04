@@ -14,6 +14,13 @@
 typedef struct _tagthreadData {
 	int64_t * stack;
 	int64_t * top_of_stack;
+
+	int detached_state;
+
+	// For a thread being waited on by join
+	struct _tagthreadData * join_waited_on_by; // If any thread is joining on me, this points there.
+	int                     join_this_thread_is_done; // Set to 1 in pthread_exit
+	void *                  join_this_thread_retval;  // Store return value passed in pthread_exit
 } threadData;
 
 typedef int lowlevel_mutex_lock;
@@ -54,7 +61,12 @@ int __yield() {
 	int leaving_thread_idx = current_thread_idx;
 	int next_thread_idx = (current_thread_idx + 1) % all_threads_count;
 	current_thread_idx = next_thread_idx;
+
+	// Note to future implementors.
+	// Any local variables that you create above this line....
 	__switch(&all_threads[leaving_thread_idx]->top_of_stack, all_threads[next_thread_idx]->top_of_stack );
+	// will be different when you get below here. The Stack was swapped out. 
+	// 
 
 	_unlock(&all_threads_lock);
 }
@@ -105,13 +117,13 @@ void __thread_root_function(void *(*pfunc)(void *), void* funcargs) {
 
 	//
 	// Call the function that was passed by the caller to pthread_create
-	pfunc(funcargs);
+	void * retval = pfunc(funcargs);
 
 	//
-	// Clean up, and Yield to whatever other thread there is.
-	// 
-	// TODO: work
+	// Terminate
+	pthread_exit( retval );
 
+	// Will never reach this
 }
 
 
@@ -156,9 +168,101 @@ int pthread_attr_getdetachstate(const pthread_attr_t *attr, int *state){
 
 void pthread_exit(void * retval) {
 	_lock(&all_threads_lock);
-	//all_threads[current_thread_idx]->
+	threadData * me = all_threads[current_thread_idx];
 	_unlock(&all_threads_lock);
 
+
+	if(me->detached_state == PTHREAD_CREATE_JOINABLE) {
+		// First, just hygiene store the exit state
+		// and the fact that we are done.
+		me->join_this_thread_is_done = 1; // Set to 1 in pthread_exit
+		me->join_this_thread_retval = retval;  // Store return value passed in pthread_exit
+
+		// Eventually the last joining thread 
+		// will de-allocate our stack. Keep on 
+		// Yielding until we die.
+		while(1==1) {
+			__yield(); 
+		}
+	} else if(me->detached_state == PTHREAD_CREATE_DETACHED) {
+		// woodo coding.
+		// TODO implement __switch_abandon.
+	}
+}
+
+int pthread_join(pthread_t th, void ** retval){
+	threadData * pth = (threadData *)th;
+	
+	threadData * me = all_threads[current_thread_idx];
+	
+	if(pth->detached_state == PTHREAD_CREATE_DETACHED) {
+		return EINVAL;
+	}
+
+	if(pth->join_waited_on_by != 0) {
+		return EINVAL;
+	}
+
+	if(pth == me) {
+		return EDEADLK;
+	}
+
+	// TODO: When pthread_t is not a raw pointer to the thread data
+	// we should also detect invalid handle and return ESRCH
+
+	pth->join_waited_on_by = me;
+
+	// Now, here is the algorithm.
+	// Joining a thread means I will set a pointer in that threads data-structure
+	// to point to me, and I will wait to be released. When the joined thread
+	// releases me, i can then read the return value that the joined thread so 
+	// kindly stored in my thread data.
+	//-- Now, if MANY threads comes to join a thread, I will build a linked list,
+	//-- and the joined thread will go through the list upon its exit and store
+	//-- its return value in all of these, and release them.
+
+	//-- Insert ourselves first in the list. 
+	//--if(pth->join_waited_on_by != 0) {
+	//--	me->join_others_waiting_too = pth->join_waited_on_by;
+	//--	pth->join_waited_on_by = me;
+	//--}
+
+	// Force compiler to reload for every read.
+	volatile int * exited = & pth->join_this_thread_is_done;
+	while(!(*exited)) {
+		__yield();
+	}
+	
+	
+	// Store the return value to the callers delight
+	if(retval) {
+		*retval = pth->join_this_thread_retval;
+	}
+
+	// Clean up the stack and other data for the thread that just died
+
+
+	// TODO: Doh, this is stupid, need to fix this.
+	_lock(&all_threads_lock);
+	int deleted = 0;
+	for(int  i = 0 ; i < all_threads_count-1 ; i++) { // -1 since we are guaranteed a shrink.
+		if(all_threads[i] == pth) {
+			all_threads[i] = 0;
+			deleted = 1;
+			if(current_thread_idx > i) { // No need for >= because cant join ourselves.
+				current_thread_idx--;
+			}
+		} 
+		if(deleted) {
+			all_threads[i] = all_threads[i+1];
+		}
+	}
+	_unlock(&all_threads_lock);
+
+	free(pth->stack);
+	free(pth);
+
+	return 0;
 }
 
 int pthread_create(pthread_t *pth, const pthread_attr_t *pattr, void *(*pfunc)(void *) , void * funcargs) {
@@ -166,13 +270,10 @@ int pthread_create(pthread_t *pth, const pthread_attr_t *pattr, void *(*pfunc)(v
 	const pthread_attr_t * attr_to_use;
 
 	// If users did not pass any attributes create a default set.
+	pthread_attr_t a;
 	if(pattr == 0) {
-		pthread_attr_t* p = malloc(sizeof(pthread_attr_t));
-		if(p == 0) {
-			return EAGAIN;
-		}
-		pthread_attr_init(p);
-		attr_to_use = p;
+		pthread_attr_init(&a);
+		attr_to_use = &a;
 	} else {
 		attr_to_use = pattr;
 	}
@@ -186,6 +287,11 @@ int pthread_create(pthread_t *pth, const pthread_attr_t *pattr, void *(*pfunc)(v
 		free(p_new_stack);
 		toReturn = EAGAIN;
 	} else {
+		// We are not done yet, clearly
+		p_new_thread_data->join_this_thread_is_done = 0;
+		p_new_thread_data->join_this_thread_retval = (void*)0xdeadbeefdeadbeef;
+		p_new_thread_data->detached_state = attr_to_use->detached_state;
+
 		p_new_thread_data->stack         = p_new_stack;
 		//p_new_thread_data->stack_size    = attr_to_use->stack_size;
 		p_new_thread_data->top_of_stack  = &p_new_thread_data->stack[attr_to_use->stack_size-1];
@@ -220,6 +326,12 @@ int pthread_create(pthread_t *pth, const pthread_attr_t *pattr, void *(*pfunc)(v
 
 	// TODO better error code.
 	_find_next_thread_and_store(p_new_thread_data);
+
+	*pth = (pthread_t) p_new_thread_data;
+
+	if(pattr == 0) {
+		pthread_attr_destroy(&a);
+	}
 
 	return toReturn;
 }
