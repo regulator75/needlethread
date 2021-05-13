@@ -36,7 +36,16 @@ __switch:
 	push r14
 	push r15
 
-	mov	QWORD PTR [rdi], rsp      # Write the current stack pointer to *storeSpHere
+.globl	__switch_abandon
+__switch_abandon:                 # Behold the spagethi. This is the function used to 
+	                              # switch to a new thread without storing the state
+	                              # of the thread we are leaving. This is used when 
+	                              # terminating detached threads.
+
+	test rdi, rdi   
+	jz no_storeSpHere          # Check if storeSpHere is non zero
+	mov QWORD PTR [rdi], rsp    # Write the current stack pointer to *storeSpHere, IF rdi!=0
+no_storeSpHere:
 
 	mov	rsp, rsi   # Load the new SP
 
