@@ -139,7 +139,7 @@ int   pthread_attr_setstackaddr(pthread_attr_t *, void *);
 int   pthread_attr_setstack(pthread_attr_t * , void * stackaddr, size_t size);
 
 int   pthread_attr_getstackaddr(const pthread_attr_t *, void **);
-int pthread_attr_getstack(const pthread_attr_t* , void ** stackaddr, size_t * stacksize);
+int   pthread_attr_getstack(const pthread_attr_t* , void ** stackaddr, size_t * stacksize);
 
 int   pthread_attr_setstacksize(pthread_attr_t *, size_t);
 int   pthread_attr_getstacksize(const pthread_attr_t *, size_t *);
@@ -242,8 +242,21 @@ int   pthread_rwlockattr_setpshared(pthread_rwlockattr_t *, int);
 int   pthread_rwlockattr_getpshared(const pthread_rwlockattr_t *, int *);
 
 
-
-
-
+int   pthread_sigmask(int how, const sigset_t *newmask, sigset_t *oldmask);
+void  pthread_testcancel(void);
+int   pthread_threadid_np(pthread_t thread, uint64_t * out_pid);
+int   pthread_cancel(pthread_t thread);
+int   pthread_yield(void);
+int   pthread_condattr_getclock(const pthread_condattr_t * attr, clockid_t * out_clock_id);
+int   pthread_condattr_setclock(pthread_condattr_t *attr, clockid_t clock_id);
+int   pthread_default_stacksize_np( size_t new_size, size_t *old_size );
+int   pthread_jit_write_protect_supported_np(void);
+void  pthread_jit_write_protect_np(int enabled);
+int   pthread_setname_np(pthread_t thread, const char *name);
+int   pthread_getname_np(pthread_t thread, char * out_name, size_t len);
+int   pthread_key_create(pthread_key_t * out_key, void (*destructor)(void*));
+int   pthread_key_delete(pthread_key_t key);
+int   pthread_kill(pthread_t thread, int sig);
+int   pthread_main_np(void);
 
 #endif //__PTHREAD_NEEDLETHREAD_H__
