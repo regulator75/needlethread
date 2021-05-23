@@ -3,6 +3,8 @@
 #include <stdio.h>
 
 
+#define NEEDLE_TEST_ASSERT(x) if(!(x)) { printf("FAIL test "#x);} 
+
 // Make sure we did not pick up the OS pthread.h
 #ifndef __PTHREAD_NEEDLETHREAD_H__
 #error "Wrong pthread included"
@@ -28,8 +30,28 @@ void test0() {
 
 void test1() {
 	pthread_attr_t attr;
+	size_t s;
+
+	// Test init and destroy
 	pthread_attr_init(&attr);
-	pthread_attr_destroy(&attr);	
+	pthread_attr_destroy(&attr);
+
+	// Test pthread_attr_setstacksize. pthread_attr_getstacksize
+	pthread_attr_init(&attr);
+	NEEDLE_TEST_ASSERT(PTHREAD_STACK_MIN > 256); // random low number
+
+	pthread_attr_getstacksize(&attr,&s);
+	NEEDLE_TEST_ASSERT(s >= PTHREAD_STACK_MIN);
+	
+	NEEDLE_TEST_ASSERT(pthread_attr_setstacksize(&attr,PTHREAD_STACK_MIN-1) != 0);
+	
+	NEEDLE_TEST_ASSERT(pthread_attr_setstacksize(&attr,PTHREAD_STACK_MIN) == 0);
+	
+	pthread_attr_setstacksize(&attr,PTHREAD_STACK_MIN+1234);
+	pthread_attr_getstacksize(&attr,&s);
+	NEEDLE_TEST_ASSERT(s == PTHREAD_STACK_MIN+1234);
+
+
 }
 
 void test2() {
@@ -78,8 +100,9 @@ void test4() {
 	for(int i = 0 ; i < 20 ; i++) {
 		__yield(0);
 	}
-
 }
+
+
 int main(int argc, const char ** argv) {
 
 	printf("sizeof(int) = %lu, sizeof(void*) = %lu\n",sizeof(int), sizeof(void*));

@@ -2,6 +2,7 @@
 #define __PTHREAD_NEEDLETHREAD_H__
 
 #include <stddef.h>
+#include <stdint.h>
  
 
 #define PTHREAD_CANCEL_ASYNCHRONOUS 101
@@ -15,6 +16,11 @@
 #define PTHREAD_CREATE_JOINABLE     202
 
 #define PTHREAD_COND_INITIALIZER    301
+
+//#include <signal.h>
+//#include <sched.h>
+//#include <time.h>
+
 
 #define PTHREAD_EXPLICIT_SCHED      401
 #define PTHREAD_INHERIT_SCHED       402
@@ -39,6 +45,9 @@
 #define PTHREAD_SCOPE_PROCESS      1001
 #define PTHREAD_SCOPE_SYSTEM       1002
 
+#ifndef PTHREAD_STACK_MIN
+#define PTHREAD_STACK_MIN          1024
+#endif
 
 /**
  * Constants
@@ -101,6 +110,12 @@ typedef struct _tagpthread_once_t {
 
 } pthread_once_t; 
 
+
+// from #include <signal.h>
+//typedef struct _tagsigset_t {
+//
+//} sigset_t;
+
 // From #include <sched.h>
 typedef struct _tagsched_param {
 
@@ -110,6 +125,11 @@ typedef struct _tagsched_param {
 typedef struct _tagptimespec {
 
 } timespec;
+
+//typedef struct _tagclockid_t {
+//
+//} clockid_t;
+
 
 /** 
  * General Pthread attribute management 
@@ -123,11 +143,11 @@ int   pthread_attr_setdetachstate(      pthread_attr_t *, int);
 int   pthread_attr_setguardsize(pthread_attr_t *, size_t);
 int   pthread_attr_getguardsize(const pthread_attr_t *, size_t *);
 
-int   pthread_attr_setinheritsched(pthread_attr_t *, int);
-int   pthread_attr_getinheritsched(const pthread_attr_t *, int *);
-
-int   pthread_attr_setschedparam(pthread_attr_t *,const sched_param *);
-int   pthread_attr_getschedparam(const pthread_attr_t *, sched_param *);
+// Too messy to support at this time
+//int   pthread_attr_setinheritsched(pthread_attr_t *, int);
+//int   pthread_attr_getinheritsched(const pthread_attr_t *, int *);
+//int   pthread_attr_setschedparam(pthread_attr_t *,const sched_param *);
+//int   pthread_attr_getschedparam(const pthread_attr_t *, sched_param *);
 
 int   pthread_attr_setschedpolicy(pthread_attr_t *, int);
 int   pthread_attr_getschedpolicy(const pthread_attr_t *, int *);
@@ -242,13 +262,13 @@ int   pthread_rwlockattr_setpshared(pthread_rwlockattr_t *, int);
 int   pthread_rwlockattr_getpshared(const pthread_rwlockattr_t *, int *);
 
 
-int   pthread_sigmask(int how, const sigset_t *newmask, sigset_t *oldmask);
+//int   pthread_sigmask(int how, const sigset_t *newmask, sigset_t *oldmask);
 void  pthread_testcancel(void);
-int   pthread_threadid_np(pthread_t thread, uint64_t * out_pid);
+int   pthread_threadid_np(pthread_t thread, uint64_t * out_pid); 
 int   pthread_cancel(pthread_t thread);
 int   pthread_yield(void);
-int   pthread_condattr_getclock(const pthread_condattr_t * attr, clockid_t * out_clock_id);
-int   pthread_condattr_setclock(pthread_condattr_t *attr, clockid_t clock_id);
+//int   pthread_condattr_getclock(const pthread_condattr_t * attr, clockid_t * out_clock_id);
+//int   pthread_condattr_setclock(pthread_condattr_t *attr, clockid_t clock_id);
 int   pthread_default_stacksize_np( size_t new_size, size_t *old_size );
 int   pthread_jit_write_protect_supported_np(void);
 void  pthread_jit_write_protect_np(int enabled);

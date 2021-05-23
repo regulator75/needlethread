@@ -212,6 +212,20 @@ int pthread_attr_getdetachstate(const pthread_attr_t *attr, int *state){
 	return 0;
 }
 
+int   pthread_attr_setstacksize(pthread_attr_t * p, size_t s) {
+	if(s < PTHREAD_STACK_MIN) {
+		return EINVAL;
+	} else {
+		p->stack_size = s;
+		return 0;
+	}
+}
+
+int   pthread_attr_getstacksize(const pthread_attr_t * p, size_t * s) {
+	*s = p->stack_size;
+	return 0;
+}
+
 
 void pthread_exit(void * retval) {
 	_lock(&all_threads_lock);
