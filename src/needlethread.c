@@ -11,6 +11,13 @@
  * Local types
  */
 
+
+typedef struct _tag_cleanuproutine {
+	void (*fnp)(void*);
+	void *arg;
+	struct _tag_cleanuproutine * next;
+} cleanuproutine;
+
 typedef struct _tagthreadData {
 	int64_t * stack;
 	int64_t * top_of_stack;
@@ -21,7 +28,10 @@ typedef struct _tagthreadData {
 	struct _tagthreadData * join_waited_on_by; // If any thread is joining on me, this points there.
 	int                     join_this_thread_is_done; // Set to 1 in pthread_exit
 	void *                  join_this_thread_retval;  // Store return value passed in pthread_exit
+
+	cleanuproutine        * cleanup_list_root;
 } threadData;
+
 
 typedef int lowlevel_mutex_lock;
 
@@ -56,7 +66,7 @@ static inline void _unlock(volatile lowlevel_mutex_lock * lock) {
 /**
  * Accessting thread data 
  * */
-int __find_threadid_from_threaData(threadData * pth) {
+int __find_threadidx_from_threadData(threadData * pth) {
 	for(int  i = 0 ; i < NEEDLETHREAD_MAX_THREADS ; i++) {
 		if(all_threads[i] == pth) {
 			return i;
@@ -65,11 +75,11 @@ int __find_threadid_from_threaData(threadData * pth) {
 	return -1;
 }
 
-threadData * __extract_threadData_from_running_threads(int threadid) {
+threadData * __extract_threadData_from_running_threads(int threadidx) {
 	// remember the pointer to what we are to take out of the list of running threads  
-	threadData * toReturn = all_threads[threadid];
+	threadData * toReturn = all_threads[threadidx];
 
-	all_threads[threadid] = 0;
+	all_threads[threadidx] = 0;
 
 	return toReturn;
 }
@@ -93,6 +103,38 @@ int _find_next_thread_and_store(threadData * pnewThreadData) {
 	return found_idx;
 }
 
+/**
+ * cleanup push and pop
+ * 
+ */
+void pthread_cleanup_push(void (*cleanup_routine)(void*), void *arg) {
+	threadData * p = (threadData*)pthread_self();
+	cleanuproutine * pnew_cleanuproutine = malloc(sizeof(cleanuproutine));
+	pnew_cleanuproutine->fnp = cleanup_routine;
+	pnew_cleanuproutine->arg = arg;
+	pnew_cleanuproutine->next = p->cleanup_list_root;
+	p->cleanup_list_root = pnew_cleanuproutine;
+}
+
+// A status returning-version of this method is usefull internally.
+static int __pthread_cleanup_pop(threadData * p, int execute){
+	cleanuproutine * pr = p->cleanup_list_root;
+	if(pr) {
+		p->cleanup_list_root = p->cleanup_list_root->next;
+		if(execute != 0) {
+			pr->fnp(pr->arg);
+		}
+		free(pr);
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+void pthread_cleanup_pop(int execute){
+	threadData * p = (threadData*)pthread_self();		
+	__pthread_cleanup_pop(p, execute);
+}
 
 
 /** 
@@ -140,6 +182,8 @@ int __yield(int abandon) {
 void _init_and_register_main_thread() {
 	threadData * pnewThreadData = malloc(sizeof(threadData));
 	pnewThreadData->stack = 0; // Dont deallocate on exit
+	pnewThreadData->cleanup_list_root = 0;
+	pnewThreadData->detached_state = PTHREAD_CREATE_DETACHED;
 
 	_lock(&all_threads_lock);
 	all_threads[0] = pnewThreadData;
@@ -148,8 +192,6 @@ void _init_and_register_main_thread() {
 
 	return;
 }
-
-
 
 void __thread_root_function(void *(*pfunc)(void *), void* funcargs) {
 	
@@ -165,6 +207,14 @@ void __thread_root_function(void *(*pfunc)(void *), void* funcargs) {
 	//
 	// Call the function that was passed by the caller to pthread_create
 	void * retval = pfunc(funcargs);
+
+	//
+	// Take out all pushed cleanouts so pthread_exit does not execute them
+	// which it would if called by the thread itself. If a thread exits 
+	// by returning from its thread function this is expected behavior
+	threadData * p = (threadData*)pthread_self();
+	while(__pthread_cleanup_pop(p, 0))
+		;
 
 	//
 	// Terminate
@@ -232,6 +282,9 @@ void pthread_exit(void * retval) {
 	threadData * me = all_threads[current_thread_idx];
 	_unlock(&all_threads_lock);
 
+	// Run all cleanup methods
+	while(__pthread_cleanup_pop(me, 1))
+		;
 
 	if(me->detached_state == PTHREAD_CREATE_JOINABLE) {
 		// First, just hygiene store the exit state
@@ -308,7 +361,7 @@ int pthread_join(pthread_t th, void ** retval){
 	_lock(&all_threads_lock);
 
 	// remove the thread data from the subsystem, making it free to delete etc.
-	__extract_threadData_from_running_threads(current_thread_idx); // returns pth again.
+	__extract_threadData_from_running_threads(__find_threadidx_from_threadData(pth)); // returns pth again.
 	
 	_unlock(&all_threads_lock);
 
@@ -343,6 +396,7 @@ int pthread_create(pthread_t *pth, const pthread_attr_t *pattr, void *(*pfunc)(v
 		// We are not done yet, clearly
 		p_new_thread_data->join_this_thread_is_done = 0;
 		p_new_thread_data->join_this_thread_retval = (void*)0xdeadbeefdeadbeef;
+		p_new_thread_data->join_waited_on_by = 0;
 		p_new_thread_data->detached_state = attr_to_use->detached_state;
 
 		p_new_thread_data->stack         = p_new_stack;
@@ -387,5 +441,14 @@ int pthread_create(pthread_t *pth, const pthread_attr_t *pattr, void *(*pfunc)(v
 	}
 
 	return toReturn;
+}
+
+pthread_t pthread_self(void) {
+	pthread_t toReturn;
+	_lock(&all_threads_lock);	
+	toReturn = (pthread_t)all_threads[current_thread_idx];
+	_unlock(&all_threads_lock);	
+	return toReturn;
+
 }
 

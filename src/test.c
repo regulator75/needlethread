@@ -86,20 +86,80 @@ void test3() {
 	printf("Done joining, result = %lu\n", result);
 }
 
+void cleanup_routine(void * arg) {
+	printf("cleanup routine: %lu\n", (long int)arg);
+}
+
+void* cleanup_test_thread(void* p) {
+	long test = (long)p;
+	switch(test) 
+	{
+		case 0:
+		// printout should be "1"
+		pthread_cleanup_push(cleanup_routine,(void*)1);
+		pthread_exit(0);
+		// Should never happen
+		printf("FAIL");
+		pthread_cleanup_pop(0);
+		break;
+
+		case 1:
+		// printout should be "10, 20"
+		pthread_cleanup_push(cleanup_routine,(void*)3);
+		pthread_cleanup_push(cleanup_routine,(void*)2);
+		pthread_exit(0);
+		// Should never happen
+		printf("FAIL");
+		pthread_cleanup_pop(0);
+
+		case 2:
+		// 
+		printf("Between this...\n");
+		pthread_cleanup_push(cleanup_routine,(void*)666);
+		pthread_cleanup_push(cleanup_routine,(void*)1);
+		pthread_cleanup_pop(0);
+		pthread_cleanup_pop(0);
+		printf("... and this there should be no text, and 666 should never appear\n");
+		pthread_exit(0);
+
+		case 3:
+		// 
+		printf("The number 888 should never be printed.\n");
+		pthread_cleanup_push(cleanup_routine,(void*)888);
+		pthread_cleanup_push(cleanup_routine,(void*)1);
+		return 0; // Thread function return, 
+		pthread_cleanup_pop(0); // compiler friendly for other pthread libraries
+		pthread_cleanup_pop(0); // compiler friendly for other pthread libraries
+	}
+	return 0;
+}
+
 void test4() {
 	pthread_t th;
+	void* result;
+	pthread_create(&th,0,cleanup_test_thread,(void*)0);
+	pthread_join(th, (void*)&result);
 
-	pthread_attr_t attr;
-	pthread_attr_init(&attr);
-	pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
-	
-	pthread_create(&th,&attr,printSomething,"Detached\n");
+	pthread_create(&th,0,cleanup_test_thread,(void*)1);
+	pthread_join(th, (void*)&result);
 
-	pthread_attr_destroy(&attr);	
+	pthread_create(&th,0,cleanup_test_thread,(void*)2);
+	pthread_join(th, (void*)&result);
 
-	for(int i = 0 ; i < 20 ; i++) {
-		__yield(0);
-	}
+	pthread_create(&th,0,cleanup_test_thread,(void*)3);
+	pthread_join(th, (void*)&result);
+}
+
+
+void test5(){
+	pthread_t  th;
+	unsigned long int result;
+	pthread_create(&th,0,cleanup_test_thread,0);
+	__yield(0);
+	__yield(0);
+	printf("Joining\n");	
+	pthread_join(th, (void*)&result);
+	printf("Done joining, result = %lu\n", result);
 }
 
 
