@@ -408,7 +408,7 @@ int pthread_create(pthread_t *pth, const pthread_attr_t *pattr, void *(*pfunc)(v
 		// The last thing that will be popped, is on top of this list, is the
 		// adress that will go into the Instruction Pointer. This is done by
 		// the "ret" instruction at the end of __swap.
-		*(p_new_thread_data->top_of_stack-0) = (int64_t) __thread_root_function; // POPs to SP
+		*(p_new_thread_data->top_of_stack-0) = (int64_t) __thread_root_function; // POPs to IP
 		*(p_new_thread_data->top_of_stack-1) = (int64_t) &p_new_thread_data->stack[(attr_to_use->stack_size  / sizeof(int64_t))  -1];//RBP, the base of the stack essentially
 		*(p_new_thread_data->top_of_stack-2) = 1;//push rax
 		*(p_new_thread_data->top_of_stack-3) = 2;//push rbx
