@@ -78,8 +78,17 @@ typedef struct _tagpthread_condattr_t {
 } pthread_condattr_t;
 
 typedef struct _tagpthread_mutex_t {
-
+	int32_t prioceiling;
+	int lock; // Used to prevent multiple muddlers in the same code
+	
 } pthread_mutex_t;
+
+typedef struct _tagpthread_mutexattr_t {
+	int32_t prioceiling;
+	int  protocol;
+	int  pshared; 
+	int  type;	
+} pthread_mutexattr_t;
 
 #define pthread_attr_t_struct_state_RAW 0
 #define pthread_attr_t_struct_state_POSTINIT 1
@@ -101,10 +110,6 @@ typedef struct _tagpthread_rwlock_t {
 typedef struct _tagpthread_rwlockattr_t {
 
 } pthread_rwlockattr_t; 
-
-typedef struct _tagpthread_mutexattr_t {
-
-} pthread_mutexattr_t;
 
 typedef struct _tagpthread_once_t {
 

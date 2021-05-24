@@ -452,3 +452,111 @@ pthread_t pthread_self(void) {
 
 }
 
+
+
+/** 
+ * Mutexes
+ * 
+ */
+
+int   pthread_mutex_init(pthread_mutex_t * pm, const pthread_mutexattr_t * pmattr) {
+	pm->lock = 0;
+	pm->prioceiling = pmattr->prioceiling;
+	return 0;
+}
+int   pthread_mutex_destroy(pthread_mutex_t * pm);
+
+int   pthread_mutex_setprioceiling(pthread_mutex_t * pm, int new, int * old) {
+	*old = pm->prioceiling;
+	pm->prioceiling = new;
+	return 0;
+};
+
+int   pthread_mutex_getprioceiling(const pthread_mutex_t * pm, int *old){
+	*old = pm->prioceiling;
+	return 0;
+};
+
+int   pthread_mutex_lock(pthread_mutex_t * pm) {
+	_lock(&pm->lock);
+	// Do stuff
+	_unlock(&pm->lock);
+}
+int   pthread_mutex_trylock(pthread_mutex_t * pm){
+	_lock(&pm->lock);
+	// Do stuff
+	_unlock(&pm->lock);
+}
+
+int   pthread_mutex_unlock(pthread_mutex_t * pm){
+	_lock(&pm->lock);
+	// Do stuff
+	_unlock(&pm->lock);
+}
+
+int pthread_mutexattr_init(pthread_mutexattr_t * pmattr) {
+	pmattr->prioceiling = 0x7fffffff;
+	pmattr->protocol = PTHREAD_PRIO_INHERIT;
+	pmattr->pshared = PTHREAD_PROCESS_PRIVATE; 
+	pmattr->type = PTHREAD_MUTEX_DEFAULT;
+	return 0;
+}
+int pthread_mutexattr_destroy(pthread_mutexattr_t * pmattr) {
+	return 0; }
+
+int pthread_mutexattr_setprioceiling(pthread_mutexattr_t * pmattr, int new){
+	pmattr->prioceiling = new;
+	return 0;}
+
+int pthread_mutexattr_getprioceiling(const pthread_mutexattr_t * pmattr, int * old){
+	*old = pmattr->prioceiling;
+	return 0;}
+
+int pthread_mutexattr_setprotocol(pthread_mutexattr_t * pmattr, int new) {
+	if( new == PTHREAD_PRIO_NONE || new == PTHREAD_PRIO_INHERIT || new == PTHREAD_PRIO_PROTECT ) {
+		pmattr->protocol = new;
+		return 0;
+	} else {
+		return ENOTSUP;
+	} 
+	return 0;
+}
+int pthread_mutexattr_getprotocol(const pthread_mutexattr_t * pmattr, int * old){
+	*old = pmattr->protocol;
+	return 0; 
+}
+
+
+int pthread_mutexattr_setpshared(pthread_mutexattr_t * pmattr, int new) {
+	if(new == PTHREAD_PROCESS_PRIVATE) {
+		pmattr->pshared = new;
+		return 0;
+	} else if(new == PTHREAD_PROCESS_SHARED) {
+		return EINVAL; // We dont support others tinkering with my mutex.
+	} else {
+		return EINVAL;
+	}
+}
+int pthread_mutexattr_getpshared(const pthread_mutexattr_t * pmattr, int * old){
+	*old = pmattr->pshared;
+	return 0; 
+}
+
+
+int pthread_mutexattr_settype(pthread_mutexattr_t * pmattr, int new) {
+	switch(new) {
+		case PTHREAD_MUTEX_NORMAL:
+		case PTHREAD_MUTEX_ERRORCHECK:
+		case PTHREAD_MUTEX_RECURSIVE:
+		case PTHREAD_MUTEX_DEFAULT:
+			pmattr->type = new; 
+			return 0;
+		default:
+			return EINVAL;
+	}
+}
+int pthread_mutexattr_gettype(const pthread_mutexattr_t * pmattr, int * old){
+	*old = pmattr->type;
+	return 0;
+}
+
