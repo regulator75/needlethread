@@ -463,6 +463,7 @@ pthread_t pthread_self(void) {
 int   pthread_mutex_init(pthread_mutex_t * pm, const pthread_mutexattr_t * pmattr) {
 	pm->lock = 0;
 	pm->prioceiling = pmattr->prioceiling;
+	pm->owning_thread = 0;
 	return 0;
 }
 int   pthread_mutex_destroy(pthread_mutex_t * pm){
