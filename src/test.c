@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 
-#define NEEDLE_TEST_ASSERT(x) if(!(x)) { printf("FAIL test "#x);} 
+#define NEEDLE_TEST_ASSERT(x) if(!(x)) { printf("FAIL test "#x"\n");} 
 
 // Make sure we did not pick up the OS pthread.h
 #ifndef __PTHREAD_NEEDLETHREAD_H__
@@ -162,6 +162,63 @@ void test5(){
 	printf("Done joining, result = %lu\n", result);
 }
 
+void* mutex_lock_routine_test(void*pp) {
+	pthread_mutex_t * pmtx = (pthread_mutex_t *)pp;
+
+	printf("Lock-test 2\n");
+	if(0 != pthread_mutex_lock(pmtx)) {
+		printf("Something broken with pthread_mutex_lock\n");
+	} else {
+		printf("Lock-test 4\n");
+		pthread_mutex_unlock(pmtx);
+	}
+	return 0;
+}
+
+void test6(){
+	pthread_mutex_t mtx;
+	pthread_mutex_init(&mtx,0);
+	pthread_mutex_destroy(&mtx);
+
+	pthread_mutexattr_t attr;
+	pthread_mutexattr_init(&attr);
+	pthread_mutexattr_setprioceiling(&attr,50);
+
+	pthread_mutex_init(&mtx,&attr);
+	int ceil;
+	NEEDLE_TEST_ASSERT(0 == pthread_mutex_getprioceiling(&mtx, &ceil));
+	NEEDLE_TEST_ASSERT(ceil == 50);
+	pthread_mutexattr_destroy(&attr);
+	pthread_mutex_destroy(&mtx);
+
+}
+
+
+void test7() {
+	// Lock stuff
+	printf("Lock-test 1\n");
+
+	pthread_mutex_t mtx;
+	pthread_mutex_init(&mtx,0);
+
+	pthread_mutex_lock(&mtx);
+	pthread_t th;
+	pthread_create(&th, 0, mutex_lock_routine_test,&mtx);
+
+	for(int i = 0 ; i < 100 ; i++){	__yield(0); }
+	printf("Lock-test 3\n");
+
+	pthread_mutex_unlock(&mtx); // should unlock thread
+
+	for(int i = 0 ; i < 100 ; i++){	__yield(0); }
+
+	printf("Lock-test 5\n");
+	pthread_mutex_lock(&mtx);
+	printf("Lock-test 6\n");
+	pthread_mutex_unlock(&mtx); // should unlock thread
+	printf("Lock-test 7 - done\n");
+}
+
 
 int main(int argc, const char ** argv) {
 
@@ -174,6 +231,9 @@ int main(int argc, const char ** argv) {
 	//test2();
 	//test3();
 	test4();
+	test5();
+	test6();
+	test7();
 
 	printf("Done\n");
 }

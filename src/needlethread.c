@@ -63,6 +63,8 @@ static inline void _unlock(volatile lowlevel_mutex_lock * lock) {
 	*lock = 0;
 }
 
+void _pthread_mutexattr_copy(pthread_mutexattr_t * target,const pthread_mutexattr_t * src);
+
 /**
  * Accessting thread data 
  * */
@@ -461,9 +463,21 @@ pthread_t pthread_self(void) {
  */
 
 int   pthread_mutex_init(pthread_mutex_t * pm, const pthread_mutexattr_t * pmattr) {
+	const pthread_mutexattr_t * initWithThis;
+	pthread_mutexattr_t def;
+	if(pmattr) {
+		initWithThis = pmattr;
+	} else {
+		pthread_mutexattr_init(&def);
+	}
 	pm->lock = 0;
-	pm->prioceiling = pmattr->prioceiling;
 	pm->owning_thread = 0;
+	_pthread_mutexattr_copy(&pm->attr, initWithThis);
+
+	if(!pmattr) {
+		// default was used, clean
+		pthread_mutexattr_destroy(&def);
+	}
 	return 0;
 }
 int   pthread_mutex_destroy(pthread_mutex_t * pm){
@@ -471,13 +485,13 @@ int   pthread_mutex_destroy(pthread_mutex_t * pm){
 }
 
 int   pthread_mutex_setprioceiling(pthread_mutex_t * pm, int new, int * old) {
-	*old = pm->prioceiling;
-	pm->prioceiling = new;
+	*old = pm->attr.prioceiling;
+	pm->attr.prioceiling = new;
 	return 0;
 };
 
 int   pthread_mutex_getprioceiling(const pthread_mutex_t * pm, int *old){
-	*old = pm->prioceiling;
+	*old = pm->attr.prioceiling;
 	return 0;
 };
 
@@ -545,6 +559,13 @@ int   pthread_mutex_unlock(pthread_mutex_t * pm){
 
 	_unlock(&pm->lock);
 	return toReturn;
+}
+void _pthread_mutexattr_copy(pthread_mutexattr_t * target,const pthread_mutexattr_t * src) {
+	// todo memcpy
+	target->prioceiling = src->prioceiling;
+	target->protocol =  src->protocol;     
+	target->pshared = src->pshared;
+	target->type = 	src->type;
 }
 
 int pthread_mutexattr_init(pthread_mutexattr_t * pmattr) {

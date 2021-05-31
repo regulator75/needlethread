@@ -77,20 +77,21 @@ typedef struct _tagpthread_condattr_t {
 
 } pthread_condattr_t;
 
-typedef struct _tagpthread_mutex_t {
-	int32_t prioceiling;
-	int lock; // Used to prevent multiple muddlers in the same code
-
-	pthread_t owning_thread; // Set to 1 if someone has this mutex.
-	
-} pthread_mutex_t;
-
 typedef struct _tagpthread_mutexattr_t {
 	int32_t prioceiling;
 	int  protocol;
 	int  pshared; 
 	int  type;	
 } pthread_mutexattr_t;
+
+typedef struct _tagpthread_mutex_t {
+	pthread_mutexattr_t attr;
+	int lock; // Used to prevent multiple muddlers in the same code
+
+	pthread_t owning_thread; // Set to 1 if someone has this mutex.
+	
+} pthread_mutex_t;
+
 
 #define pthread_attr_t_struct_state_RAW 0
 #define pthread_attr_t_struct_state_POSTINIT 1
