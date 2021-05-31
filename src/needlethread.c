@@ -408,6 +408,7 @@ int pthread_create(pthread_t *pth, const pthread_attr_t *pattr, void *(*pfunc)(v
 		// The last thing that will be popped, is on top of this list, is the
 		// adress that will go into the Instruction Pointer. This is done by
 		// the "ret" instruction at the end of __swap.
+		// (The numbers pushed here, 1,2,3 etc, are for debugging purposes only)
 		*(p_new_thread_data->top_of_stack-0) = (int64_t) __thread_root_function; // POPs to IP
 		*(p_new_thread_data->top_of_stack-1) = (int64_t) &p_new_thread_data->stack[(attr_to_use->stack_size  / sizeof(int64_t))  -1];//RBP, the base of the stack essentially
 		*(p_new_thread_data->top_of_stack-2) = 1;//push rax
@@ -464,7 +465,9 @@ int   pthread_mutex_init(pthread_mutex_t * pm, const pthread_mutexattr_t * pmatt
 	pm->prioceiling = pmattr->prioceiling;
 	return 0;
 }
-int   pthread_mutex_destroy(pthread_mutex_t * pm);
+int   pthread_mutex_destroy(pthread_mutex_t * pm){
+	return 0;
+}
 
 int   pthread_mutex_setprioceiling(pthread_mutex_t * pm, int new, int * old) {
 	*old = pm->prioceiling;
@@ -478,20 +481,69 @@ int   pthread_mutex_getprioceiling(const pthread_mutex_t * pm, int *old){
 };
 
 int   pthread_mutex_lock(pthread_mutex_t * pm) {
+	int toReturn; // All paths must set this
 	_lock(&pm->lock);
-	// Do stuff
+
+	// Special error code if we re-lock something we already own
+	if(pm->owning_thread == pthread_self()) {
+		toReturn = EDEADLK;
+	} else {
+		while(pm->owning_thread) {
+			// While its locked. Relinquish protection on the mutex and let others run.
+			_unlock(&pm->lock);
+			__yield(0);
+			_lock(&pm->lock);
+		};
+
+		// Now set it to mark it for otheres that
+		// we own it.
+		pm->owning_thread = pthread_self();
+
+		toReturn = 0;
+	}
+
 	_unlock(&pm->lock);
+	return toReturn;
 }
+
 int   pthread_mutex_trylock(pthread_mutex_t * pm){
+	int toReturn; // All paths must set this.
 	_lock(&pm->lock);
-	// Do stuff
+	
+	// Special error code if we re-lock something we already own
+	if(pm->owning_thread == pthread_self()) {
+		toReturn = EDEADLK;
+	} else if(pm->owning_thread != 0) {
+		toReturn = EBUSY;
+	} else {
+		pm->owning_thread = pthread_self();
+		toReturn = 0;
+	}
+
 	_unlock(&pm->lock);
+
+	return 0;
 }
 
 int   pthread_mutex_unlock(pthread_mutex_t * pm){
+	int toReturn; // Set in all paths.
 	_lock(&pm->lock);
-	// Do stuff
+
+	// Special error code if down own the mutex
+	// This also will be the case for unlocking
+	// something that was never locked.
+	if(pm->owning_thread != pthread_self()) {
+		toReturn = EPERM;
+	} else {
+		pm->owning_thread = 0;
+		toReturn = 0;
+	}
+	
+	// TODO: Implement some nice hints about what threads that should
+	// be scheduled now that this is unlocked. 
+
 	_unlock(&pm->lock);
+	return toReturn;
 }
 
 int pthread_mutexattr_init(pthread_mutexattr_t * pmattr) {

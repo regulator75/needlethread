@@ -80,6 +80,8 @@ typedef struct _tagpthread_condattr_t {
 typedef struct _tagpthread_mutex_t {
 	int32_t prioceiling;
 	int lock; // Used to prevent multiple muddlers in the same code
+
+	pthread_t owning_thread; // Set to 1 if someone has this mutex.
 	
 } pthread_mutex_t;
 
