@@ -307,6 +307,44 @@ void pthread_exit(void * retval) {
 	}
 }
 
+
+int pthread_detach(pthread_t th)
+{
+	int retval; // set by all paths.
+	threadData * pth = (threadData *)th;
+	
+	if(pth->detached_state == PTHREAD_CREATE_DETACHED) {
+		retval = EINVAL;
+	} else {
+		// If the thread is done, join on it to force the cleanup, else
+		// just set the detached_state so it exit nicely eventually.
+		// TODO: there is a race-risk here, in checking this flag and possibly
+		// being interrupted, but that is a future problem for now.
+		if(pth->join_this_thread_is_done) {
+			// The thread is done. Just join it, it will
+			// clean up all data
+			pthread_join(th,0);
+			retval = 0;
+		} else {
+			// Its not done. Two cases either
+			// no-one is waiting for it, in which
+			// case we just go forth and mark
+			// it as detached, or if someone is
+			// waiting for it... that is undefined
+			if(pth->join_waited_on_by) {
+				// Undefined, what to do if someone is joining on this thread but we are detaching it?
+				retval = EINVAL;
+			} else {
+				// Setting this will cause a cleanup on pthread_exit
+				pth->detached_state = PTHREAD_CREATE_DETACHED;
+				retval = 0;
+ 			}
+		}
+	}
+
+	return retval;
+}
+
 int pthread_join(pthread_t th, void ** retval){
 	threadData * pth = (threadData *)th;
 	
@@ -481,6 +519,7 @@ int   pthread_mutex_init(pthread_mutex_t * pm, const pthread_mutexattr_t * pmatt
 	return 0;
 }
 int   pthread_mutex_destroy(pthread_mutex_t * pm){
+	// Assume no destruction of attr member is needed.
 	return 0;
 }
 

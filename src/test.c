@@ -220,6 +220,49 @@ void test7() {
 }
 
 
+void* yield_10_and_print_then_yield_10_exit(void*pp) {
+	unsigned long p = (long)pp;
+	for(int i = 0 ; i <10 ; i++) {
+		__yield(0);
+	};
+	printf("thread - %lu\n",p);
+	for(int i = 0 ; i <10 ; i++) {
+		__yield(0);
+	};	
+	pthread_cleanup_push(cleanup_routine,(void*)p);
+	pthread_exit(0);
+	pthread_cleanup_pop(0); // never reaches this
+}
+
+void test8() {
+	pthread_t th;
+	printf("pthread_detach test - 0\n");
+	pthread_create(&th,0,yield_10_and_print_then_yield_10_exit,(void*)4);
+	printf("main   - 1\n");
+	pthread_detach(th);
+	printf("main   - 2\n");
+	int res = pthread_join(th,0);  // returns error value, and wont block
+	NEEDLE_TEST_ASSERT(res  != 0);
+	printf("main   - 3\n");
+	for(int i = 0 ; i < 100 ; i++){	__yield(0); }
+	printf("main   - 5\n");
+}
+
+void* print_and_exit(void*p) {
+	printf("%s",(char*)p);
+	return 0;
+}
+void test9() {
+	pthread_t th;
+	printf("pthread_detach test #2 - 0\n");
+	pthread_create(&th,0,print_and_exit,(void*)"1\n");
+	for(int i = 0 ; i < 100 ; i++){	__yield(0); }
+	// by now its long gone.
+	pthread_detach(th); // dont crash
+	printf("2\n");
+}
+
+
 int main(int argc, const char ** argv) {
 
 	printf("sizeof(int) = %lu, sizeof(void*) = %lu\n",sizeof(int), sizeof(void*));
@@ -234,6 +277,8 @@ int main(int argc, const char ** argv) {
 	test5();
 	test6();
 	test7();
+	test8();
+	test9();
 
 	printf("Done\n");
 }
